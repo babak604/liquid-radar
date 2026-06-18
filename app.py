@@ -1,4 +1,13 @@
-import streamlit as st
+import os
+import subprocess
+import sys
+
+# Forces the cloud container to install the dependencies manually on startup
+try:
+    import yfinance as yf
+except ImportError:
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "yfinance"])
+    import yfinance as yfimport streamlit as st
 import sqlite3
 import yfinance as yf
 import random
