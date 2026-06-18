@@ -1,11 +1,92 @@
 import streamlit as st
 import sqlite3
+import random
+import threading
+import json
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from engine import calculate_liquidity_risk
 
-# Premium Minimalist UI Configuration
+# --- PILLAR 2: BACKGROUND STRIPE WEBHOOK LISTENER ---
+def process_stripe_webhook_payment(email):
+    """
+    Automated database execution layer. 
+    Triggers the exact millisecond Stripe finishes processing a customer card charge.
+    """
+    conn = sqlite3.connect('liquid_radar.db')
+    cursor = conn.cursor()
+    
+    # Auto-initialize table schema if executing on a clean cloud environment
+    cursor.execute('''CREATE TABLE IF NOT EXISTS users 
+                      (user_id INTEGER PRIMARY KEY AUTOINCREMENT, 
+                       email TEXT UNIQUE, 
+                       password_hash TEXT, 
+                       subscription_status TEXT DEFAULT 'active')''')
+    
+    email_clean = email.strip().lower()
+    cursor.execute("SELECT email FROM users WHERE email=?", (email_clean,))
+    user_exists = cursor.fetchone()
+    
+    if user_exists:
+        cursor.execute("UPDATE users SET subscription_status='active' WHERE email=?", (email_clean,))
+        print(f"💰 [STRIPE AUTO-SCALE] Subscription reactivated for: {email_clean}")
+    else:
+        # Generate a temporary access passcode for the user to initial sign in
+        temp_pass = str(random.randint(100000, 999999))
+        cursor.execute("INSERT INTO users (email, password_hash, subscription_status) VALUES (?, ?, 'active')", 
+                       (email_clean, temp_pass, 'active'))
+        print(f"🎉 [STRIPE AUTO-SCALE] New membership provisioned. Email: {email_clean} | Temp Pass: {temp_pass}")
+        
+    conn.commit()
+    conn.close()
+
+class StripeWebhookHandler(BaseHTTPRequestHandler):
+    def do_POST(self):
+        """Processes live async checkout notifications directly from Stripe API."""
+        content_length = int(self.headers['Content-Length'])
+        post_data = self.rfile.read(content_length)
+        
+        try:
+            payload = json.loads(post_data.decode('utf-8'))
+            event_type = payload.get("type")
+            
+            # Catch successful checkouts
+            if event_type == "checkout.session.completed":
+                session = payload.get("data", {}).get("object", {})
+                customer_email = session.get("customer_details", {}).get("email") or session.get("customer_email")
+                
+                if customer_email:
+                    process_stripe_webhook_payment(customer_email)
+            
+            # Instantly acknowledge receipt back to Stripe to clear the queue
+            self.send_response(200)
+            self.send_header('Content-Type', 'text/plain')
+            self.end_headers()
+            self.wfile.write(b"Success")
+            
+        except Exception as e:
+            print(f"⚠️ Webhook processing anomaly: {e}")
+            self.send_response(400)
+            self.end_headers()
+
+    def log_message(self, format, *args):
+        return # Suppress default server terminal spam to keep monitoring clean
+
+def run_webhook_server():
+    """Runs on a separate execution thread to handle transactions 24/7."""
+    server_address = ('', 8080)
+    httpd = HTTPServer(server_address, StripeWebhookHandler)
+    print("📡 Stripe Data Webhook listening live on Port 8080...")
+    httpd.serve_forever()
+
+# Start the transaction gateway daemon if it isn't already active
+if not any(t.name == "StripeWebhookThread" for t in threading.enumerate()):
+    webhook_thread = threading.Thread(target=run_webhook_server, name="StripeWebhookThread", daemon=True)
+    webhook_thread.start()
+
+
+# --- UI LAYER & DISPLAY GATEWAY ---
 st.set_page_config(page_title="The Liquid Radar", page_icon="📡", layout="centered")
 
-# Visual Styling - Fixed background colors & forced white text elements
 st.markdown("""
     <style>
     .stApp { background-color: #121212 !important; }
@@ -18,7 +99,6 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- DATABASE UTILITIES ---
 def check_subscriber_auth(email, password):
     conn = sqlite3.connect('liquid_radar.db')
     cursor = conn.cursor()
@@ -44,11 +124,9 @@ def register_new_subscriber(email, password):
     conn.close()
     return success
 
-# --- SESSION STATE MANAGEMENT ---
 if 'authenticated' not in st.session_state:
     st.session_state['authenticated'] = False
 
-# --- SYSTEM GATE: AUTH & REGISTRATION ---
 if not st.session_state['authenticated']:
     st.title("📡 The Liquid Radar")
     st.caption("Universal Liquidity Protection Engine • Billed at $9.99/mo")
@@ -83,7 +161,6 @@ if not st.session_state['authenticated']:
                 else:
                     st.error("❌ This email is already registered to an active account.")
 
-# --- PROTECTED PREMIUM APPLICATION PORTAL ---
 else:
     st.title("📡 The Liquid Radar")
     
@@ -95,7 +172,6 @@ else:
             
     portal_mode = st.tabs(["📈 Global Markets Scan", "🏢 Hyper-Local Real Estate"])
     
-    # TAB 1: TRADITIONAL HIGH-VELOCITY MARKETS
     with portal_mode[0]:
         st.subheader("Asset Velocity Scanner")
         user_ticker = st.text_input("Enter Stock Ticker or Crypto Symbol:", value="BTC-USD")
@@ -139,7 +215,6 @@ else:
             elif metrics and "error" in metrics:
                 st.error(f"❌ {metrics['error']}")
 
-    # TAB 2: GEOSPATIAL HYPER-LOCAL REAL ESTATE DETECTOR
     with portal_mode[1]:
         st.subheader("Geospatial Capital Flight Radar")
         st.write("Tracking physical capital, mortgage defaults, and municipal velocity parameters.")
