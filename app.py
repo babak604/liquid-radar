@@ -1,18 +1,12 @@
-import os
-import sys
-
-# Protect the engine from importing yfinance before it's ready
-try:
-    import yfinance as yf
-except ImportError:
-    import pip
-    pip.main(["install", "yfinance", "pandas", "numpy"])
-    import yfinance as yf
-
+import yfinance as yf
 import pandas as pd
 import numpy as np
 
 def trigger_push_notification(metrics):
+    """
+    Simulates sending an immediate, high-converting premium push notification 
+    to a consumer's phone when risk parameters cross danger thresholds.
+    """
     print("\n⚡ [PUSH ENGINE ACTIVATED] Dispatching live alert to subscribers...")
     print("------------------------------------------------------------------")
     print(f"🚨 LIQUID RADAR ALERT: {metrics['Ticker']} RISK IS SPIKING!")
@@ -21,6 +15,10 @@ def trigger_push_notification(metrics):
     print("------------------------------------------------------------------\n")
 
 def calculate_liquidity_risk(ticker_symbol):
+    """
+    Analyzes Volume-Weighted Capital Momentum to determine if 
+    the market floor is thinning out.
+    """
     ticker_symbol = ticker_symbol.upper().strip()
     
     try:
@@ -28,10 +26,11 @@ def calculate_liquidity_risk(ticker_symbol):
         df = asset.history(period="60d")
         
         if df.empty or len(df) < 15:
-            return {"error": "Could not find active liquidity flows."}
+            return {"error": f"Could not find active liquidity flows for '{ticker_symbol}'."}
     except Exception:
         return {"error": "Network timeout or invalid ticker format."}
 
+    # Calculate Dollar Volume (Price * Volume)
     df['Dollar_Volume'] = df['Close'] * df['Volume']
     df['Rolling_Vol_Avg'] = df['Dollar_Volume'].rolling(window=14).mean()
     
@@ -39,6 +38,7 @@ def calculate_liquidity_risk(ticker_symbol):
     latest_vol = df['Dollar_Volume'].iloc[-1]
     avg_vol = df['Rolling_Vol_Avg'].iloc[-1]
     
+    # Core Abstraction Logic
     volume_deficit_ratio = latest_vol / avg_vol
     
     if volume_deficit_ratio < 0.70:
@@ -61,6 +61,7 @@ def calculate_liquidity_risk(ticker_symbol):
         "Engine Verdict": verdict
     }
 
+    # Automated trigger warning string
     if safety_score < 50:
         trigger_push_notification(metrics)
 
