@@ -1,5 +1,15 @@
+import os
+import sys
+
+# Self-contained installer loop that hooks directly into the running instance
+try:
+    import yfinance as yf
+except ImportError:
+    import pip
+    pip.main(["install", "yfinance", "pandas", "numpy"])
+    import yfinance as yf
+
 import streamlit as st
-import yfinance as yf
 import sqlite3
 import random
 from engine import calculate_liquidity_risk
