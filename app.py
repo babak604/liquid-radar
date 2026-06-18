@@ -1,45 +1,50 @@
-import yfinance as yf
-import pandas as pd
-import numpy as np
-
-def trigger_push_notification(metrics):
-    """
-    Simulates sending an immediate, high-converting premium push notification 
-    to a consumer's phone when risk parameters cross danger thresholds.
-    """
-    print("\n⚡ [PUSH ENGINE ACTIVATED] Dispatching live alert to subscribers...")
-    print("------------------------------------------------------------------")
-    print(f"🚨 LIQUID RADAR ALERT: {metrics['Ticker']} RISK IS SPIKING!")
-    print(f"Current Condition: {metrics['Engine Verdict']}")
-    print(f"Action Step: The smart money is moving to cash. Protect your capital. Delay new entries.")
-    print("------------------------------------------------------------------\n")
+import urllib.request
+import json
+import time
 
 def calculate_liquidity_risk(ticker_symbol):
     """
-    Analyzes Volume-Weighted Capital Momentum to determine if 
-    the market floor is thinning out.
+    Pure Python API version - Zero dependencies. 
+    Compatible with Python 3.14+ out of the box.
     """
-    ticker_symbol = ticker_symbol.upper().strip()
+    ticker = ticker_symbol.upper().strip()
+    
+    # Direct raw request to Yahoo Finance public chart API
+    url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}?range=60d&interval=1d"
     
     try:
-        asset = yf.Ticker(ticker_symbol)
-        df = asset.history(period="60d")
+        req = urllib.request.Request(
+            url, 
+            headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+        )
+        with urllib.request.urlopen(req) as response:
+            data = json.loads(response.read().decode())
+            
+        result = data['chart']['result'][0]
+        closes = result['indicators']['quote'][0]['close']
+        volumes = result['indicators']['quote'][0]['volume']
         
-        if df.empty or len(df) < 15:
-            return {"error": f"Could not find active liquidity flows for '{ticker_symbol}'."}
-    except Exception:
-        return {"error": "Network timeout or invalid ticker format."}
+        # Filter out any null data points
+        valid_data = [(c, v) for c, v in zip(closes, volumes) if c is not None and v is not None]
+        
+        if len(valid_data) < 15:
+            return {"error": f"Insufficient liquidity history for '{ticker}'."}
+            
+    except Exception as e:
+        return {"error": f"Could not connect to liquidity pipelines: {str(e)}"}
 
-    # Calculate Dollar Volume (Price * Volume)
-    df['Dollar_Volume'] = df['Close'] * df['Volume']
-    df['Rolling_Vol_Avg'] = df['Dollar_Volume'].rolling(window=14).mean()
+    # Calculate Dollar Volume streams (Price * Volume)
+    dollar_volumes = [c * v for c, v in valid_data]
     
-    latest_close = df['Close'].iloc[-1]
-    latest_vol = df['Dollar_Volume'].iloc[-1]
-    avg_vol = df['Rolling_Vol_Avg'].iloc[-1]
+    latest_close = valid_data[-1][0]
+    latest_vol = dollar_volumes[-1]
+    
+    # Calculate Rolling Average using trailing 14 periods
+    trailing_14 = dollar_volumes[-15:-1]
+    avg_vol = sum(trailing_14) / len(trailing_14) if trailing_14 else latest_vol
     
     # Core Abstraction Logic
-    volume_deficit_ratio = latest_vol / avg_vol
+    volume_deficit_ratio = latest_vol / avg_vol if avg_vol > 0 else 1.0
     
     if volume_deficit_ratio < 0.70:
         calculated_risk = 0.84 
@@ -53,16 +58,10 @@ def calculate_liquidity_risk(ticker_symbol):
 
     safety_score = int((1 - calculated_risk) * 100)
 
-    metrics = {
-        "Ticker": ticker_symbol,
+    return {
+        "Ticker": ticker,
         "Current Price": f"${round(latest_close, 2)}",
         "Liquidity Risk Score": f"{int(calculated_risk * 100)}%",
         "Safety Index": f"{safety_score}%",
         "Engine Verdict": verdict
     }
-
-    # Automated trigger warning string
-    if safety_score < 50:
-        trigger_push_notification(metrics)
-
-    return metrics
