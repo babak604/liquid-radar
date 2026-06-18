@@ -1,15 +1,5 @@
-import os
-import subprocess
-import sys
-
-# Forces the cloud container to install the dependencies manually on startup
-try:
-    import yfinance as yf
-except ImportError:
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "yfinance"])
-    import yfinance as yf
-
 import streamlit as st
+import yfinance as yf
 import sqlite3
 import random
 from engine import calculate_liquidity_risk
@@ -57,7 +47,6 @@ if not st.session_state['authenticated']:
     st.caption("Universal Liquidity Protection Engine • Billed at $9.99/mo")
     
     auth_mode = st.radio("Choose Action:", ["Sign In to Account", "Create New Membership"], horizontal=True)
-    
     st.markdown("---")
     
     email_input = st.text_input("Email Address:")
