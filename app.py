@@ -7,9 +7,10 @@ try:
     import yfinance as yf
 except ImportError:
     subprocess.check_call([sys.executable, "-m", "pip", "install", "yfinance"])
-    import yfinance as yfimport streamlit as st
+    import yfinance as yf
+
+import streamlit as st
 import sqlite3
-import yfinance as yf
 import random
 from engine import calculate_liquidity_risk
 
@@ -42,7 +43,7 @@ def register_new_subscriber(email, password):
         conn.commit()
         success = True
     except sqlite3.IntegrityError:
-        success = False  # Email already exists
+        success = False  
     conn.close()
     return success
 
@@ -90,14 +91,12 @@ if not st.session_state['authenticated']:
 else:
     st.title("📡 The Liquid Radar")
     
-    # Clean top-right aligned Log Out button using columns
     c1, c2 = st.columns([6, 1])
     with c2:
         if st.button("Log Out"):
             st.session_state['authenticated'] = False
             st.rerun()
             
-    # Main Navigation Toggles
     portal_mode = st.tabs(["📈 Global Markets Scan", "🏢 Hyper-Local Real Estate"])
     
     # TAB 1: TRADITIONAL HIGH-VELOCITY MARKETS
@@ -126,7 +125,6 @@ else:
                     
                 st.info(f"**Current Market Value:** {metrics['Current Price']}")
                 
-                # THE FOMO BREAKER
                 st.markdown("---")
                 st.subheader("🛑 The FOMO Breaker")
                 safety_val = int(metrics["Safety Index"].replace("%", ""))
@@ -152,7 +150,6 @@ else:
         
         st.markdown("---")
         with st.spinner(f"Computing localized delta layers for {target_city}..."):
-            # Real Estate Engine Model (Simulating localized liquidity velocity metrics)
             if target_city == "Montreal Region":
                 safety_idx = "74%"
                 risk_score = "26%"
