@@ -7,7 +7,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from engine import calculate_liquidity_risk
 from real_estate_engine import calculate_property_liquidity
 
-# --- PILLAR 2: BACKGROUND STRIPE WEBHOOK LISTENER (THREAD-SAFE) ---
+# --- BACKGROUND STRIPE WEBHOOK LISTENER (THREAD-SAFE) ---
 def process_stripe_webhook_payment(email):
     """
     Automated database execution layer.
@@ -17,11 +17,15 @@ def process_stripe_webhook_payment(email):
     conn.execute("PRAGMA journal_mode=WAL;")
     cursor = conn.cursor()
     
-    cursor.execute('''CREATE TABLE IF NOT EXISTS users 
-                      (user_id INTEGER PRIMARY KEY AUTOINCREMENT, 
-                       email TEXT UNIQUE, 
-                       password_hash TEXT, 
-                       subscription_status TEXT DEFAULT 'active')''')
+    # Completely fixed multi-line safe SQL initialization string
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            user_id INTEGER PRIMARY KEY AUTOINCREMENT, 
+            email TEXT UNIQUE, 
+            password_hash TEXT, 
+            subscription_status TEXT DEFAULT 'active'
+        )
+    """)
     
     email_clean = email.strip().lower()
     cursor.execute("SELECT email FROM users WHERE email=?", (email_clean,))
@@ -81,18 +85,4 @@ st.markdown("""
     div[data-testid="stMetricLabel"] { color: #AAAAAA !important; }
     .fomo-box { padding: 20px; background-color: #1A1A1A; border-radius: 8px; border: 1px solid #333; margin-top: 15px; }
     .timeline-card { padding: 15px; background-color: #161616; border-left: 3px solid #444; margin-bottom: 12px; border-radius: 4px; }
-    .stTextInput input { background-color: #1A1A1A !important; color: #FFFFFF !important; border: 1px solid #333 !important; }
-    </style>
-    """, unsafe_allow_html=True)
-
-
-# --- DATA PRIVACY GATE UTILITIES ---
-def check_subscriber_auth(email, password):
-    conn = sqlite3.connect('liquid_radar.db', timeout=10)
-    conn.execute("PRAGMA journal_mode=WAL;")
-    cursor = conn.cursor()
-    try:
-        cursor.execute("SELECT subscription_status FROM users WHERE email=? AND password_hash=?", (email.strip().lower(), password))
-        user = cursor.fetchone()
-    except sqlite3.OperationalError:
-        cursor.execute('''CREATE TABLE IF NOT EXISTS users (user_id INTEGER PRIMARY KEY AUTOINCREMENT, email TEXT UNIQUE
+    .stTextInput input { background-color: #1A1A1
